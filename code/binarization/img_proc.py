@@ -1,6 +1,8 @@
 import time
 from itertools import product
 from pathlib import Path
+import glob
+import os
 
 import numpy as np
 import cv2
@@ -176,8 +178,17 @@ def post_process_img(pred, binarized):
     img = img | filled
     return img | binarized
 
-# save code
 
+# Batch Binarize code:
+def batch_binarize(folder_path: str, out_folder: str):
+    paths = glob.glob(f"{folder_path}/*.tif")
+    for path in paths:
+        img = load_img(path)
+        mask = binarize_img(img)
+        save_mask_png(mask, os.path.join(out_folder, f"{os.path.basename(path)}"))
+
+
+# save code
 def save_mask_png(mask: np.ndarray, out_path: str) -> str:
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)

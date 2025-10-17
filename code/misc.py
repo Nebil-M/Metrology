@@ -5,7 +5,6 @@ import torch.nn as nn
 import numpy as np
 
 import binarization.img_proc as img_proc
-import binarization.shuan_proc as shuan_proc
 from binarization.img_proc import save_mask_png, load_img
 
 def runU():
@@ -17,15 +16,7 @@ def runB():
         load_img("C:/Repo/Metrology/data/misc/misc_img.tif"))
     save_mask_png(mask, "C:/Repo/Metrology/data/misc/mask_binarized2.png")
 
-def batch_binarize():
-    import glob
-    import os
 
-    paths = glob.glob("C:/Repo/Metrology/Images/1. U-Net with single Structure/1. U-Net with single Structure/UNET-ETE/image/*.tif")
-    for path in paths:
-        img = load_img(path)
-        mask = img_proc.binarize_img(img)
-        save_mask_png(mask, os.path.join("C:/Repo/Metrology/data/misc/Classical_ETE", f"{os.path.basename(path)}"))
 
 def r():
     from Evaluator import convert_path, Score_stats, print_eval_scores, quality_score
@@ -76,8 +67,11 @@ def load_json(path):
         data = json.load(f)
     return data
 
+
+
+
 if __name__ == "__main__":
-    e()
+    pass
 
 
 
