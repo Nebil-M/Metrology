@@ -70,7 +70,8 @@ class UnetManager:
 
     @staticmethod
     def run_train(data_root, model_output):
-        """ Run U-Net training with specified data root and model output path. Model output path is complete path of model file including .pth suffix."""
+        """ Run U-Net training with specified data root and model output path. 
+        Model output path is complete path of model file including .pth suffix."""
         train_stage(
             data_root = data_root,   # has /image/*.tif and /label/*.tif
             model_output = model_output,
