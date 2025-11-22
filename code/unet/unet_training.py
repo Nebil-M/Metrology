@@ -18,8 +18,8 @@ def train_stage(data_root: str, model_output: str, epochs: int = 50, lr: float =
     g = torch.Generator().manual_seed(0)
     tr_ds, val_ds = random_split(ds, [len(ds)-n_val, n_val], generator=g)
 
-    tr_ld = DataLoader(tr_ds, batch_size=bs, shuffle=True, pin_memory=True, num_workers=4)
-    val_ld = DataLoader(val_ds, batch_size=bs, pin_memory=True, num_workers=4)
+    tr_ld = DataLoader(tr_ds, batch_size=bs, shuffle=True, pin_memory=False, num_workers=4)
+    val_ld = DataLoader(val_ds, batch_size=bs, pin_memory=False, num_workers=4)
 
     
 
@@ -48,7 +48,7 @@ def train_stage(data_root: str, model_output: str, epochs: int = 50, lr: float =
         ############## Logging
         msg = f"[{datetime.now().isoformat(timespec='seconds')}] Epoch {ep+1}/{epochs} val_loss={avg:.4f}"
         print(msg, flush=True)
-        with open(r"C:/Repo/Metrology/models/log.txt", "a", encoding="utf-8") as f:
+        with open(r"/Users/alexstrugacz/ml-research/Metrology/models/log.txt", "a", encoding="utf-8") as f:
             f.write(msg + "\n")
         ##############
 
