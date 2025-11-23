@@ -14,6 +14,22 @@ from unet.unet_inference import infer_all
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
+# in code/Util.py
+from rnn_quality.training import train_quality_stage
+from rnn_quality.inference import predict_pair
+
+class QualityRNNManager:
+    @staticmethod
+    def run_train(data_root, labels_csv, model_output):
+        train_quality_stage(
+            data_root=data_root,
+            labels_csv=labels_csv,
+            model_output=model_output,
+            epochs=30,
+            lr=1e-4,
+            bs=8,
+            device="cpu",
+        )
 
 class npyImageManager:
     def __init__(self):
@@ -76,7 +92,7 @@ class UnetManager:
             data_root = data_root,   # has /image/*.tif and /label/*.tif
             model_output = model_output,
             epochs=50, lr=1e-4, bs=8,
-            device="cuda", channels=(32,64,128,256)
+            device="cpu", channels=(32,64,128,256)
         )
 
     @staticmethod
