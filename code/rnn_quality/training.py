@@ -3,40 +3,39 @@ from torch.utils.data import DataLoader, random_split
 from typing import Literal
 from datetime import datetime
 
-from .dataset import QualityDataset
-from .model import ImageMaskRNNClassifier
-
+# Make sure this imports the NEW dataset class we just defined
+from dataset import QualityDataset
+from model import ImageMaskRNNClassifier
 
 def train_quality_stage(
     data_root: str,
-    labels_csv: str,
     model_output: str,
-    epochs: int = 30,
+    epochs: int = 50,
     lr: float = 1e-4,
     bs: int = 8,
-    device: Literal["cpu", "cuda"] = "cpu",
+    device: Literal["cpu", "cuda"] = "cuda",
     base_channels: int = 16,
     rnn_hidden: int = 64,
     bidirectional: bool = False,
 ):
-    img_dir = f"{data_root}/image"
-    mask_dir = f"{data_root}/mask"
+    print(f"[Quality] Initializing dataset from {data_root}...")
 
-    print(f"[Quality] Using images from {img_dir}")
-    print(f"[Quality] Using masks  from {mask_dir}")
-    print(f"[Quality] Using labels from {labels_csv}")
-
-    ds = QualityDataset(img_dir, mask_dir, labels_csv)
+    # Instantiate the new folder-based dataset
+    ds = QualityDataset(data_root)
+    
     n_val = max(1, int(0.2 * len(ds)))
     g = torch.Generator().manual_seed(0)
     tr_ds, val_ds = random_split(ds, [len(ds) - n_val, n_val], generator=g)
+
+    print(f"[Quality] Training Samples: {len(tr_ds)}")
+    print(f"[Quality] Val Samples:      {len(val_ds)}")
 
     tr_ld = DataLoader(tr_ds, batch_size=bs, shuffle=True,
                        pin_memory=False, num_workers=4)
     val_ld = DataLoader(val_ds, batch_size=bs,
                         pin_memory=False, num_workers=4)
 
-    device_t = torch.device(device if (device == "cpu" or torch.cuda.is_available()) else "cpu")
+    device_t = torch.device(device if (device == "cuda" or torch.cuda.is_available()) else "cpu")
     print(f"[Quality] Training on {device_t}")
 
     model = ImageMaskRNNClassifier(
@@ -83,4 +82,4 @@ def train_quality_stage(
         if val_loss < best_val:
             best_val = val_loss
             torch.save({"model_state": model.state_dict()}, model_output)
-            print(f"  → Saved best model to {model_output}")
+            print(f"  -> Saved best model to {model_output}")

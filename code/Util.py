@@ -19,16 +19,19 @@ from rnn_quality.training import train_quality_stage
 from rnn_quality.inference import predict_pair
 
 class QualityRNNManager:
+
     @staticmethod
-    def run_train(data_root, labels_csv, model_output):
+    def run_train(data_root, model_output):
         train_quality_stage(
             data_root=data_root,
-            labels_csv=labels_csv,
             model_output=model_output,
-            epochs=30,
+            epochs=50,     
             lr=1e-4,
             bs=8,
-            device="cpu",
+            device="cuda",  
+            base_channels=16,
+            rnn_hidden=64,
+            bidirectional=False
         )
 
 class npyImageManager:

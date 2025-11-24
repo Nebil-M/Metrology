@@ -5,7 +5,7 @@ import torch
 import numpy as np
 from PIL import Image
 
-from .model import ImageMaskRNNClassifier
+from model import ImageMaskRNNClassifier
 
 
 def _load_gray(path: str) -> torch.Tensor:
