@@ -4,7 +4,7 @@ from Evaluator import convert_path
 import numpy as np
 import os
 import random, json
-import shutil
+import shutil, math
 from collections import Counter
 
 
@@ -741,17 +741,236 @@ def clean_unpaired_images(bad_dataset_root, dry_run=True):
     if dry_run and deleted_count > 0:
         print("\nTo actually delete these files, set 'dry_run=False' in the script.")
 
+def create_scaled_dataset(source_root, output_root, percentage=0.1):
+    """
+    Creates a smaller version of the Evaluator Dataset by randomly sampling 
+    a percentage of the data from both 1_Good and 0_Bad classes.
+    
+    Args:
+        source_root (str): Path to the full dataset (contains 1_Good, 0_Bad).
+        output_root (str): Path where the mini dataset will be created.
+        percentage (float): Fraction of data to keep (e.g., 0.1 for 10%).
+    """
+    
+    if not os.path.exists(source_root):
+        print(f"Error: Source dataset '{source_root}' not found.")
+        return
+
+    # Structure definition
+    classes = ["1_Good", "0_Bad"]
+    subfolders = ["images", "masks"]
+
+    print(f"--- Creating Scaled Dataset ({percentage*100}%) ---")
+    print(f"Source: {source_root}")
+    print(f"Output: {output_root}\n")
+
+    total_copied = 0
+
+    for cls in classes:
+        src_class_path = os.path.join(source_root, cls)
+        dst_class_path = os.path.join(output_root, cls)
+        
+        src_img_dir = os.path.join(src_class_path, "images")
+        src_msk_dir = os.path.join(src_class_path, "masks")
+        
+        dst_img_dir = os.path.join(dst_class_path, "images")
+        dst_msk_dir = os.path.join(dst_class_path, "masks")
+
+        # Create output directories
+        os.makedirs(dst_img_dir, exist_ok=True)
+        os.makedirs(dst_msk_dir, exist_ok=True)
+
+        # Check if source class exists
+        if not os.path.exists(src_img_dir):
+            print(f"Skipping {cls}: 'images' folder not found.")
+            continue
+
+        # Get list of all images
+        all_images = [f for f in os.listdir(src_img_dir) if os.path.isfile(os.path.join(src_img_dir, f))]
+        
+        # Calculate sample size
+        total_files = len(all_images)
+        sample_size = math.ceil(total_files * percentage)
+        
+        print(f"Processing {cls}: {total_files} files found -> Sampling {sample_size}...")
+
+        # Randomly select files
+        selected_images = random.sample(all_images, sample_size)
+        
+        # Build a map of mask files for quick lookup (Stem -> Full Filename)
+        # This handles cases where image is .tif but mask is .png
+        mask_map = {}
+        if os.path.exists(src_msk_dir):
+            for f in os.listdir(src_msk_dir):
+                stem, _ = os.path.splitext(f)
+                mask_map[stem] = f
+
+        class_copied_count = 0
+        
+        for img_name in selected_images:
+            img_stem, _ = os.path.splitext(img_name)
+            
+            # 1. Copy Image
+            src_img = os.path.join(src_img_dir, img_name)
+            dst_img = os.path.join(dst_img_dir, img_name)
+            shutil.copy2(src_img, dst_img)
+            
+            # 2. Find and Copy Mask
+            if img_stem in mask_map:
+                mask_name = mask_map[img_stem]
+                src_msk = os.path.join(src_msk_dir, mask_name)
+                dst_msk = os.path.join(dst_msk_dir, mask_name)
+                shutil.copy2(src_msk, dst_msk)
+                class_copied_count += 1
+            else:
+                print(f"   [WARN] Mask missing for selected image: {img_name}")
+                # We typically still copy the image, or you could choose to delete it here
+        
+        total_copied += class_copied_count
+        print(f"   -> Copied {class_copied_count} pairs.")
+
+    print("\n" + "="*30)
+    print(f"Dataset Scaling Complete.")
+    print(f"Total pairs created: {total_copied}")
+    print(f"Location: {output_root}")
+
+def build_balanced_dataset(source_root, output_root):
+    """
+    Creates a NEW dataset at 'output_root' that is balanced.
+    
+    Logic:
+    1. Count '1_Good' and '0_Bad' in 'source_root'.
+    2. Determine which class is smaller (Minority).
+    3. Copy ALL files from the Minority class to 'output_root'.
+    4. Randomly sample the Majority class to match the Minority count.
+    5. Copy the sampled Majority files to 'output_root'.
+    """
+    
+    # Define source paths
+    src_good_dir = os.path.join(source_root, "1_Good")
+    src_bad_dir  = os.path.join(source_root, "0_Bad")
+
+    # Define output paths
+    out_good_img = os.path.join(output_root, "1_Good", "images")
+    out_good_msk = os.path.join(output_root, "1_Good", "masks")
+    out_bad_img  = os.path.join(output_root, "0_Bad", "images")
+    out_bad_msk  = os.path.join(output_root, "0_Bad", "masks")
+
+    # Verify source exists
+    if not os.path.exists(src_good_dir) or not os.path.exists(src_bad_dir):
+        print(f"Error: Source dataset structure incorrect. Could not find 1_Good/0_Bad in {source_root}")
+        return
+
+    # Create output directories
+    for d in [out_good_img, out_good_msk, out_bad_img, out_bad_msk]:
+        os.makedirs(d, exist_ok=True)
+
+    print(f"--- Building Balanced Dataset ---")
+    print(f"Source: {source_root}")
+    print(f"Output: {output_root}\n")
+
+    # 1. Index files in source
+    def get_file_pairs(class_root):
+        """Returns list of (img_filename, mask_filename) tuples"""
+        img_dir = os.path.join(class_root, "images")
+        msk_dir = os.path.join(class_root, "masks")
+        
+        pairs = []
+        try:
+            images = [f for f in os.listdir(img_dir) if os.path.isfile(os.path.join(img_dir, f))]
+            
+            # Map mask stems for quick lookup
+            masks = os.listdir(msk_dir)
+            mask_map = {os.path.splitext(m)[0]: m for m in masks}
+            
+            for img in images:
+                stem, _ = os.path.splitext(img)
+                # Only include valid pairs (Image + Mask)
+                if stem in mask_map:
+                    pairs.append((img, mask_map[stem]))
+        except OSError:
+            pass
+        return pairs
+
+    print("Indexing source files...")
+    good_pairs = get_file_pairs(src_good_dir)
+    bad_pairs  = get_file_pairs(src_bad_dir)
+
+    count_good = len(good_pairs)
+    count_bad = len(bad_pairs)
+
+    print(f"Found Pairs:")
+    print(f"  1_Good: {count_good}")
+    print(f"  0_Bad:  {count_bad}")
+
+    if count_good == 0 or count_bad == 0:
+        print("Error: One of the classes is empty. Cannot balance.")
+        return
+
+    # 2. Determine target count (size of minority class)
+    target_count = min(count_good, count_bad)
+    print(f"\nTarget Balance Count: {target_count} per class")
+
+    # 3. Select files to copy
+    # Minority class: Take all
+    # Majority class: Random sample
+    if count_good > count_bad:
+        selected_bad  = bad_pairs # Take all bad
+        selected_good = random.sample(good_pairs, target_count) # Sample good
+        print(f"Sampling '1_Good' down to {target_count}...")
+    else:
+        selected_good = good_pairs # Take all good
+        selected_bad  = random.sample(bad_pairs, target_count) # Sample bad
+        print(f"Sampling '0_Bad' down to {target_count}...")
+
+    # 4. Perform Copy
+    def copy_pairs(pairs_list, src_root_class, dst_img_dir, dst_msk_dir):
+        count = 0
+        src_img_dir = os.path.join(src_root_class, "images")
+        src_msk_dir = os.path.join(src_root_class, "masks")
+        
+        for img_name, msk_name in pairs_list:
+            try:
+                # Copy Image
+                shutil.copy2(os.path.join(src_img_dir, img_name), os.path.join(dst_img_dir, img_name))
+                # Copy Mask
+                shutil.copy2(os.path.join(src_msk_dir, msk_name), os.path.join(dst_msk_dir, msk_name))
+                count += 1
+                
+                if count % 100 == 0:
+                    sys.stdout.write('.')
+                    sys.stdout.flush()
+            except Exception as e:
+                print(f"[Error] Copying {img_name}: {e}")
+        return count
+
+    print("\nCopying '1_Good' data...")
+    copied_good = copy_pairs(selected_good, src_good_dir, out_good_img, out_good_msk)
+    
+    print("\nCopying '0_Bad' data...")
+    copied_bad = copy_pairs(selected_bad, src_bad_dir, out_bad_img, out_bad_msk)
+
+    print(f"\n\n[SUCCESS] New balanced dataset created at:")
+    print(f"{output_root}")
+    print(f"Final Counts: 1_Good={copied_good}, 0_Bad={copied_bad}")
 
 if __name__ == "__main__":
     # ================= CONFIGURATION =================
-    CURATED = r"C:\Repo\Metrology\Raw_Data\Curated"
-    TRAINING = r"C:\Repo\Metrology\Raw_Data\Training"
+    Bad = convert_path(r"C:\Repo\Metrology\data\UNET-6 mask")
+
+    CURATED = convert_path(r"C:\Repo\Metrology\Raw_Data\Curated")
+    TRAINING = convert_path(r"C:\Repo\Metrology\Raw_Data\Training")
+    TEST = convert_path(r"C:\Repo\Metrology\Raw_Data\Test")
     
     d1 = convert_path(r"C:\Repo\Metrology\Evaluator_Dataset\1_Good")
     d2 = convert_path(r"C:\Repo\Metrology\Evaluator_Dataset\0_Bad")
 
-    count_structures_in_dataset(d1)
-    count_structures_in_dataset(d2)
+    d3 = convert_path(r"C:\Repo\Metrology\Evaluator_Dataset_Test\0_Bad")
+
+    #build_evaluator_dataset(CURATED, TEST, Bad, "Evaluator_Dataset_Test")
+    #clean_unpaired_images(d3, dry_run=True)
+
+
 
 
 

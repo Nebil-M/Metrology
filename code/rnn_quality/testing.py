@@ -9,7 +9,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, confusion_m
 
 # ================= CONFIGURATION =================
 TEST_DATASET_DIR = r"C:\Repo\Metrology\Evaluator_Dataset_Test"
-MODEL_PATH = "best_evaluator_unbalanced.pth"
+MODEL_PATH = "best_evaluator_augmented.pth"
 BATCH_SIZE = 16
 # =================================================
 
