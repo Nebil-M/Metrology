@@ -98,9 +98,9 @@ def classify_good_bad(
     image_dir: str,
     mask_dir: str,
     evaluator_model_path: str,
-    device: Literal["cpu", "cuda"] = "cuda",
+    device: Literal["cpu", "cuda"] = "cpu",
     batch_size: int = 16,
-    threshold: float = 0.9, # Change this to modify threshold based on how well it does over validation  (a sweep over validation) during training.
+    threshold: float = 0.9, # TODO: Change this to modify threshold based on how well it does over validation  (a sweep over validation) during training.
 ) -> Dict[str, int]:
     """
     Use the evaluator model to label each (image, mask) pair as GOOD (1) or BAD (0).
@@ -177,7 +177,7 @@ def iterative_unet_training(
     evaluator_model_path: str,
     n_stages: int = 2,
     keep_threshold: float = 0.6,
-    device: Literal["cpu", "cuda"] = "cuda",
+    device: Literal["cpu", "cuda"] = "cpu",
     channels=(32, 64, 128, 256),
     epochs: int = 50,
     lr: float = 1e-4,

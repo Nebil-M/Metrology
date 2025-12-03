@@ -8,8 +8,8 @@ import numpy as np
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, accuracy_score
 
 # ================= CONFIGURATION =================
-TEST_DATASET_DIR = r"C:\Repo\Metrology\Evaluator_Dataset_Test"
-MODEL_PATH = "best_evaluator_augmented.pth"
+TEST_DATASET_DIR = "Evaluator_Dataset_Test"
+MODEL_PATH = "best_evaluator.pth"
 BATCH_SIZE = 16
 # =================================================
 

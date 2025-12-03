@@ -10,7 +10,7 @@ import numpy as np
 
 # ================= CONFIGURATION =================
 # Path to the balanced dataset created by the previous script
-DATASET_DIR = r"C:\Repo\Metrology\Evaluator_Dataset" 
+DATASET_DIR = "Evaluator_Dataset_balanced"
 
 # Hyperparameters
 BATCH_SIZE = 16
@@ -220,7 +220,7 @@ def train_model():
         
         if val_acc > best_acc:
             best_acc = val_acc
-            torch.save(model.state_dict(), "best_evaluator_unbalanced.pth")
+            torch.save(model.state_dict(), "best_evaluator_model_1.pth")
             print("   -> Model Saved!")
 
     print("\nTraining Complete. Best Model saved as 'best_evaluator_unbalanced.pth'")
