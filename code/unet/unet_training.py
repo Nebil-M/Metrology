@@ -7,7 +7,7 @@ from losses import BCEDiceLoss
 from datetime import datetime
 
 def train_stage(data_root: str, model_output: str, epochs: int = 50, lr: float = 1e-4, bs: int = 8,
-                device: Literal['cpu','cuda'] = 'cpu', channels=(32,64,128,256)):
+                device: Literal['cpu','cuda'] = 'cuda', channels=(32,64,128,256)):
     
     print(f"Training on {device} with {len(channels)} channels: {channels}")
     
@@ -48,7 +48,7 @@ def train_stage(data_root: str, model_output: str, epochs: int = 50, lr: float =
         ############## Logging
         msg = f"[{datetime.now().isoformat(timespec='seconds')}] Epoch {ep+1}/{epochs} val_loss={avg:.4f}"
         print(msg, flush=True)
-        with open(r"/Users/alexstrugacz/ml-research/Metrology/models/log.txt", "a", encoding="utf-8") as f:
+        with open(r"Metrology/models/log.txt", "a", encoding="utf-8") as f:
             f.write(msg + "\n")
         ##############
 

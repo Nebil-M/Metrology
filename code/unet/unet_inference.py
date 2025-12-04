@@ -4,7 +4,7 @@ from typing import Literal
 from unet import Unet
 
 def infer_all(model_pth: str, images_root: str, save_root: str,
-              device: Literal['cpu','cuda'] = 'cpu',
+              device: Literal['cpu','cuda'] = 'cuda',
               channels=(32,64,128,256), thresh: float = 0.5):
     model = Unet(1, 1, list(channels)).to(device).eval()
     state = torch.load(model_pth, map_location=device)
