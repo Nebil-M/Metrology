@@ -302,19 +302,19 @@ def iterative_unet_training(
 
 if __name__ == "__main__":
     # Adjust these for your environment
-    BASE_DATA_ROOT = "/Users/alexstrugacz/ml-research/Metrology/data/UNET-6-arg"
-    UNLABELED_ROOT = "/Users/alexstrugacz/ml-research/Metrology/data/True_RAW_Data"
-    WORK_ROOT = "/Users/alexstrugacz/ml-research/Metrology/iterative_runs"
-    EVALUATOR_MODEL = "/Users/alexstrugacz/ml-research/Metrology/best_evaluator.pth"
+    BASE_DATA_ROOT = "Iterative_dataset\initial_dataset"
+    UNLABELED_ROOT = "Iterative_dataset\True_RAW_Data_flattened"
+    WORK_ROOT = "Iterative_dataset\iterative_runs"
+    EVALUATOR_MODEL = "Iterative_dataset\Balanced_evalutor.pth"
 
     iterative_unet_training(
         base_data_root=BASE_DATA_ROOT,
         unlabeled_images_root=UNLABELED_ROOT,
         work_root=WORK_ROOT,
         evaluator_model_path=EVALUATOR_MODEL,
-        n_stages=3,
-        keep_threshold=0.6,   # used INSIDE evaluator to decide Good/Bad
-        device="cpu",
+        n_stages=5,
+        keep_threshold=0.7392,   # used INSIDE evaluator to decide Good/Bad
+        device="cuda",
         channels=(32, 64, 128, 256),
         epochs=50,
         lr=1e-4,

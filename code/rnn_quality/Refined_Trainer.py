@@ -1,5 +1,4 @@
 import os
-import glob
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,13 +8,15 @@ from PIL import Image
 import numpy as np
 
 # ================= CONFIGURATION =================
-# Path to the balanced dataset created by the previous script
-DATASET_DIR = r"C:\Repo\Metrology\Evaluator_Dataset" 
+# Separate Training and Validation Directories
+TRAIN_DIR = r"C:\Repo\Metrology\Evaluator_Dataset" 
+VAL_DIR   = r"C:\Repo\Metrology\Evaluator_Dataset_Validation"
+MODEL_NAME = r'Un_Balanced_evalutor.pth'
 
 # Hyperparameters
 BATCH_SIZE = 16
 LEARNING_RATE = 0.001
-NUM_EPOCHS = 40 #Best 30
+NUM_EPOCHS = 40 
 # =================================================
 
 class WaferEvaluatorDataset(Dataset):
@@ -34,14 +35,16 @@ class WaferEvaluatorDataset(Dataset):
         bad_msk_dir = os.path.join(root_dir, "0_Bad", "masks")
         self._load_class_samples(bad_img_dir, bad_msk_dir, label=0)
 
-        print(f"-> Found {len(self.samples)} pairs in total.")
+        print(f"-> Loaded {len(self.samples)} samples from {os.path.basename(root_dir)}")
 
     def _load_class_samples(self, img_dir, msk_dir, label):
         if not os.path.exists(img_dir): return
         
         # Get all images
         valid_exts = ('.tif', '.tiff', '.png', '.jpg', '.jpeg')
-        images = [f for f in os.listdir(img_dir) if f.lower().endswith(valid_exts)]
+        try:
+            images = [f for f in os.listdir(img_dir) if f.lower().endswith(valid_exts)]
+        except OSError: return
 
         for img_name in images:
             img_path = os.path.join(img_dir, img_name)
@@ -51,10 +54,11 @@ class WaferEvaluatorDataset(Dataset):
             
             # Heuristic: Find mask file with same stem
             mask_name = None
-            for f in os.listdir(msk_dir):
-                if f.startswith(stem) and f.lower().endswith(valid_exts):
-                    mask_name = f
-                    break
+            if os.path.exists(msk_dir):
+                for f in os.listdir(msk_dir):
+                    if f.startswith(stem) and f.lower().endswith(valid_exts):
+                        mask_name = f
+                        break
             
             if mask_name:
                 mask_path = os.path.join(msk_dir, mask_name)
@@ -67,13 +71,15 @@ class WaferEvaluatorDataset(Dataset):
         img_path, mask_path, label = self.samples[idx]
 
         # Open Image (Convert to RGB to standardize inputs)
-        image = Image.open(img_path).convert("RGB")
-        
-        # Open Mask (Convert to Grayscale/L)
-        mask = Image.open(mask_path).convert("L")
+        try:
+            image = Image.open(img_path).convert("RGB")
+            mask = Image.open(mask_path).convert("L")
+        except Exception as e:
+            print(f"Error loading {img_path}: {e}")
+            # Return dummy to prevent crash
+            return torch.zeros(4, 224, 224), torch.tensor(label, dtype=torch.float32)
 
-        # Resize to standard size (e.g., 224x224 for ResNet)
-        # We must apply the same resize to both to keep them aligned
+        # Resize to standard size (224x224 for ResNet)
         resize = transforms.Resize((224, 224))
         image = resize(image)
         mask = resize(mask)
@@ -84,98 +90,74 @@ class WaferEvaluatorDataset(Dataset):
         msk_tensor = to_tensor(mask)    # Shape: (1, 224, 224)
 
         # Concatenate along channel dimension -> (4, 224, 224)
-        # Input is now: R, G, B, Mask
         input_tensor = torch.cat([img_tensor, msk_tensor], dim=0)
         
-        # Normalize (Optional but recommended - usually done on 3 channels, 
-        # here we skip specific norm for simplicity or can add custom 4-channel norm)
-
         label_tensor = torch.tensor(label, dtype=torch.float32)
 
         return input_tensor, label_tensor
 
 def get_evaluator_model():
-    """
-    Loads ResNet18 and modifies the first layer to accept 4 channels 
-    (Image RGB + Mask) instead of 3.
-    """
-    # Load pre-trained ResNet
     model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-    
-    # --- Modify First Conv Layer ---
-    # Original: Conv2d(3, 64, kernel_size=7, ...)
-    # New:      Conv2d(4, 64, kernel_size=7, ...)
     original_conv = model.conv1
-    
-    # Create new layer with 4 input channels
     new_conv = nn.Conv2d(4, 64, kernel_size=7, stride=2, padding=3, bias=False)
     
-    # Initialize weights:
-    # Copy original RGB weights to first 3 channels
     with torch.no_grad():
         new_conv.weight[:, :3] = original_conv.weight
-        # For the 4th channel (mask), we can initialize it with the mean of the RGB weights
-        # This gives it a "reasonable" starting point
         new_conv.weight[:, 3] = torch.mean(original_conv.weight, dim=1)
 
     model.conv1 = new_conv
-
-    # --- Modify Final Fully Connected Layer ---
-    # ResNet output is 1000 classes (ImageNet). We need 1 output (Binary: 0 or 1)
     num_ftrs = model.fc.in_features
     model.fc = nn.Linear(num_ftrs, 1)
-    
     return model
 
 def train_model():
-    print(f"Loading dataset from: {DATASET_DIR}")
+    print(f"--- Setting up Datasets ---")
     
-    dataset = WaferEvaluatorDataset(DATASET_DIR)
-    
-    if len(dataset) == 0:
-        print("Error: No valid image/mask pairs found. Check your paths.")
+    # 1. Initialize Separate Datasets
+    if not os.path.exists(TRAIN_DIR) or not os.path.exists(VAL_DIR):
+        print("Error: Train or Val directory not found. Please run the splitting script first.")
         return
 
-    # Split Train/Val (80/20)
-    train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
-
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    train_dataset = WaferEvaluatorDataset(TRAIN_DIR)
+    val_dataset   = WaferEvaluatorDataset(VAL_DIR)
     
-    print(f"[Quality] Training Samples: {len(train_dataset)}")
-    print(f"[Quality] Val Samples:      {len(val_dataset)}")
+    if len(train_dataset) == 0:
+        print("Error: Training dataset is empty.")
+        return
 
+    # 2. Create Loaders
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader   = DataLoader(val_dataset,   batch_size=BATCH_SIZE, shuffle=False)
+    
     # Device config
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[Quality] Training on {device}")
+    print(f"Training on {device}")
 
     # Initialize Model
     model = get_evaluator_model().to(device)
 
-    # --- DYNAMIC CLASS WEIGHTING ---
-    # Calculate ratio from the dataset itself so we don't need to hardcode it
-    all_labels = [s[2] for s in dataset.samples]
-    num_good = sum(all_labels)
-    num_bad = len(all_labels) - num_good
+    # 3. Calculate Class Weighting (Based on TRAINING set only)
+    all_train_labels = [s[2] for s in train_dataset.samples]
+    num_good = sum(all_train_labels)
+    num_bad = len(all_train_labels) - num_good
 
+    # Avoid division by zero
     if num_good > 0:
         pos_weight_val = num_bad / num_good
     else:
-        pos_weight_val = 1.0 # Fallback if no good samples
+        pos_weight_val = 1.0 
     
-    print(f"[Balance] Good: {int(num_good)} | Bad: {int(num_bad)} | Calculated pos_weight: {pos_weight_val:.2f}")
+    print(f"[Class Balance] Good: {int(num_good)} | Bad: {int(num_bad)}")
+    print(f"[Class Balance] Calculated pos_weight: {pos_weight_val:.4f}")
 
-    # Apply the calculated weight to the loss function
     pos_weight = torch.tensor([pos_weight_val]).to(device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
-    # Training Loop
+    # 4. Training Loop
     best_acc = 0.0
     
+    print("\n--- Starting Training Loop ---")
     for epoch in range(NUM_EPOCHS):
         model.train()
         running_loss = 0.0
@@ -185,25 +167,21 @@ def train_model():
         for inputs, labels in train_loader:
             inputs, labels = inputs.to(device), labels.to(device)
             
-            # Forward
-            outputs = model(inputs).squeeze() # Output shape (Batch_Size)
-            loss = criterion(outputs, labels)
-            
-            # Backward
             optimizer.zero_grad()
+            outputs = model(inputs).squeeze()
+            loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
             
-            # Stats
             running_loss += loss.item()
             preds = (torch.sigmoid(outputs) > 0.5).float()
             correct += (preds == labels).sum().item()
             total += labels.size(0)
             
         train_acc = 100 * correct / total
-        print(f"Epoch [{epoch+1}/{NUM_EPOCHS}] Loss: {running_loss/len(train_loader):.4f} | Acc: {train_acc:.2f}%")
+        avg_loss = running_loss / len(train_loader)
 
-        # Validation
+        # Validation Phase
         model.eval()
         val_correct = 0
         val_total = 0
@@ -216,14 +194,15 @@ def train_model():
                 val_total += labels.size(0)
         
         val_acc = 100 * val_correct / val_total
-        print(f"   -> Val Acc: {val_acc:.2f}%")
+        
+        print(f"Epoch [{epoch+1}/{NUM_EPOCHS}] Loss: {avg_loss:.4f} | Train Acc: {train_acc:.2f}% | Val Acc: {val_acc:.2f}%")
         
         if val_acc > best_acc:
             best_acc = val_acc
-            torch.save(model.state_dict(), "best_evaluator_unbalanced.pth")
-            print("   -> Model Saved!")
+            torch.save(model.state_dict(), MODEL_NAME)
+            print(f"   >>> Best Model Saved (Val Acc: {val_acc:.2f}%)")
 
-    print("\nTraining Complete. Best Model saved as 'best_evaluator_unbalanced.pth'")
+    print("\nTraining Complete.")
 
 if __name__ == "__main__":
     train_model()

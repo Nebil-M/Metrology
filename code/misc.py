@@ -954,21 +954,126 @@ def build_balanced_dataset(source_root, output_root):
     print(f"{output_root}")
     print(f"Final Counts: 1_Good={copied_good}, 0_Bad={copied_bad}")
 
-if __name__ == "__main__":
-    # ================= CONFIGURATION =================
-    Bad = convert_path(r"C:\Repo\Metrology\data\UNET-6 mask")
 
-    CURATED = convert_path(r"C:\Repo\Metrology\Raw_Data\Curated")
-    TRAINING = convert_path(r"C:\Repo\Metrology\Raw_Data\Training")
-    TEST = convert_path(r"C:\Repo\Metrology\Raw_Data\Test")
+
+def move_files(src_root, dest_root, ratio):
+    random.seed(SEED)
     
-    d1 = convert_path(r"C:\Repo\Metrology\Evaluator_Dataset\1_Good")
-    d2 = convert_path(r"C:\Repo\Metrology\Evaluator_Dataset\0_Bad")
+    # Define the structure
+    classes = ["1_Good", "0_Bad"]
+    
+    total_moved = 0
+    
+    for class_name in classes:
+        # Source paths
+        src_img_dir = os.path.join(src_root, class_name, "images")
+        src_msk_dir = os.path.join(src_root, class_name, "masks")
+        
+        # Destination paths
+        dst_img_dir = os.path.join(dest_root, class_name, "images")
+        dst_msk_dir = os.path.join(dest_root, class_name, "masks")
+        
+        # Create destination folders
+        os.makedirs(dst_img_dir, exist_ok=True)
+        os.makedirs(dst_msk_dir, exist_ok=True)
+        
+        if not os.path.exists(src_img_dir):
+            print(f"Skipping {class_name}: Source directory not found.")
+            continue
 
-    d3 = convert_path(r"C:\Repo\Metrology\Evaluator_Dataset_Test\0_Bad")
+        # Get list of images
+        valid_exts = ('.tif', '.tiff', '.png', '.jpg', '.jpeg')
+        images = [f for f in os.listdir(src_img_dir) if f.lower().endswith(valid_exts)]
+        
+        # Determine how many to move
+        num_to_move = int(len(images) * ratio)
+        files_to_move = random.sample(images, num_to_move)
+        
+        print(f"Processing '{class_name}': Moving {num_to_move} of {len(images)} pairs to Validation...")
+        
+        for img_name in files_to_move:
+            # 1. Move Image
+            src_img_path = os.path.join(src_img_dir, img_name)
+            dst_img_path = os.path.join(dst_img_dir, img_name)
+            
+            shutil.move(src_img_path, dst_img_path)
+            
+            # 2. Find and Move Matching Mask
+            # We try to find the mask by stem (filename without extension)
+            stem = os.path.splitext(img_name)[0]
+            mask_found = False
+            
+            # Check source mask dir for matching file
+            if os.path.exists(src_msk_dir):
+                for m in os.listdir(src_msk_dir):
+                    if m.startswith(stem) and m.lower().endswith(valid_exts):
+                        src_msk_path = os.path.join(src_msk_dir, m)
+                        dst_msk_path = os.path.join(dst_msk_dir, m)
+                        shutil.move(src_msk_path, dst_msk_path)
+                        mask_found = True
+                        break
+            
+            if not mask_found:
+                print(f"  [WARN] Moved image {img_name} but could not find matching mask!")
+                
+            total_moved += 1
 
-    #build_evaluator_dataset(CURATED, TEST, Bad, "Evaluator_Dataset_Test")
-    #clean_unpaired_images(d3, dry_run=True)
+    print("-" * 50)
+    print(f"Operation Complete. Moved {total_moved} pairs to:")
+    print(DEST_DIR)
+
+
+
+
+# =================================================
+def remove_specific_structures(root_dir, prefixes, dry_run=True):
+    """
+    Recursively walks through the dataset and deletes files that start with 
+    specific prefixes (e.g., TCL, FLG), regardless of folder depth.
+    """
+    if not os.path.exists(root_dir):
+        print(f"Error: Directory not found: {root_dir}")
+        return
+
+    print(f"--- Cleaning Structures {prefixes} (Recursive) ---")
+    print(f"Target: {root_dir}")
+    print(f"Mode:   {'DRY RUN (No files will be deleted)' if dry_run else 'LIVE EXECUTION'}\n")
+    
+    total_deleted = 0
+    
+    # Walk through the entire directory tree
+    for root, dirs, files in os.walk(root_dir):
+        for filename in files:
+            # Check if file starts with any of the forbidden prefixes
+            if any(filename.upper().startswith(p.upper()) for p in prefixes):
+                file_path = os.path.join(root, filename)
+                
+                if dry_run:
+                    print(f"[DRY RUN] Would delete: {file_path}")
+                else:
+                    try:
+                        os.remove(file_path)
+                        print(f"[DELETED] {file_path}")
+                    except OSError as e:
+                        print(f"[ERROR] Could not delete {filename}: {e}")
+                
+                total_deleted += 1
+
+    print("-" * 40)
+    if dry_run:
+        print(f"Scan Complete. Found {total_deleted} files to delete.")
+        print("Set dry_run=False in the function call to execute deletion.")
+    else:
+        print(f"Cleanup Complete. Deleted {total_deleted} files.")
+
+if __name__ == "__main__":
+    # 1. Run Safe Check
+    DATASET_DIR = r"Iterative_dataset/True_RAW_Data_flattened" 
+
+    # List of structure prefixes to remove
+    FORBIDDEN_PREFIXES = ["TTGAP", "TCL", "FLG"]
+    remove_specific_structures(DATASET_DIR, FORBIDDEN_PREFIXES, dry_run=False)
+
 
 
 

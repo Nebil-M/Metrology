@@ -8,8 +8,8 @@ import numpy as np
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, accuracy_score
 
 # ================= CONFIGURATION =================
-TEST_DATASET_DIR = r"C:\Repo\Metrology\Evaluator_Dataset_Test"
-MODEL_PATH = "best_evaluator_augmented.pth"
+TEST_DATASET_DIR = r"C:\Repo\Metrology\Evaluator_Dataset_Test copy"
+MODEL_PATH = "Balanced_evalutor.pth"
 BATCH_SIZE = 16
 # =================================================
 
@@ -271,4 +271,4 @@ if __name__ == "__main__":
     # This is what you likely want for your Auto-Curator.
     # We look for the threshold where False Positives are near zero.
     print("\n" + "="*20 + " SCENARIO 2: Strict Curation " + "="*20)
-    tester.generate_report([0.95, 0.98])
+    tester.generate_report([0.95, 0.98, 1.00])
