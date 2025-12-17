@@ -7,7 +7,6 @@ from torchvision import transforms
 from sklearn.metrics import roc_curve, auc, precision_recall_curve, average_precision_score
 from PIL import Image
 
-# Import model definition from your trainer
 from Refined_Trainer import get_evaluator_model, WaferEvaluatorDataset
 
 # ================= CONFIGURATION =================
@@ -103,7 +102,6 @@ def analyze_performance():
     plt.legend(loc='center left')
     plt.grid(alpha=0.3, which='both')
     
-    # Add vertical line for 0.5 default
     plt.axvline(x=0.5, color='gray', linestyle=':', alpha=0.5)
 
     # =================================================

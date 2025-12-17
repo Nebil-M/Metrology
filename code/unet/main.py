@@ -18,7 +18,6 @@ def run():
 
 
 if __name__ == "__main__":
-    # On macOS, always use the spawn method explicitly.
     import multiprocessing as mp
     mp.set_start_method("spawn", force=True)
 

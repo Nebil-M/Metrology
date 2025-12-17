@@ -10,7 +10,6 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import models, transforms
 from PIL import Image
 
-# Import your existing modules
 from unet_training import train_stage
 from unet_inference import infer_all
 
@@ -153,12 +152,9 @@ def build_union_dataset(
     src_prev_lbl = prev_data_root / "label"
     
     # Some datasets call it "images" vs "image" or "masks" vs "label"
-    # Let's try to be robust:
     if not src_prev_img.exists():
-        # try "images"
         src_prev_img = prev_data_root / "images"
     if not src_prev_lbl.exists():
-        # try "masks"
         src_prev_lbl = prev_data_root / "masks"
 
     count_prev = 0
@@ -191,13 +187,9 @@ def build_union_dataset(
 
     for fname in keep_names:
         # 2a. Copy Mask (Predicted)
-        # preds_root is flat, so we just look for fname (likely .png)
         
         img_stem = os.path.splitext(fname)[0]
-        
-        # Find the mask file in preds_root (it might have different extension, e.g. .png)
         mask_src = None
-        # usually infer_all saves as .png
         for ext in ['.png', '.tif', '.tiff', '.jpg']:
             potential_mask = preds_root / f"{img_stem}{ext}"
             if potential_mask.exists():
@@ -210,9 +202,6 @@ def build_union_dataset(
             
             # Copy Mask to new dataset
             # Force the mask filename to match the image filename stem + mask extension
-            # Or usually just match the image name exactly if that's what training expects.
-            # Let's assume training loader expects image.tif and label.tif (or label.png)
-            # For simplicity, we copy the mask with its current name.
             dst_mask_name = mask_src.name
             
             # If your dataset loader requires mask name == image name (minus extension),
@@ -353,7 +342,7 @@ if __name__ == "__main__":
         work_root=WORK_ROOT,
         evaluator_model_path=EVALUATOR_MODEL,
         n_stages=5,
-        keep_threshold=THRESHOLD,   # used INSIDE evaluator to decide Good/Bad
+        keep_threshold=THRESHOLD,
         device="cuda",
         channels=(32, 64, 128, 256),
         epochs=30,
