@@ -1,4 +1,4 @@
-# Robust SEM Masking: Iterative Training with U-Net + Evaluator
+# How to Run Iterative Training with U-Net + Evaluator
 
 ## Overview
 
